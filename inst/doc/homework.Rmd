@@ -1,0 +1,1638 @@
+---
+title: "Homework"
+author: "Liang Wu"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Homework}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# HW0
+
+## Question
+
+> Use knitr to produce at least 3 examples. For each example, texts should mix 
+with figures and/or tables. Better to have mathematical formulas.
+
+## Answer
+
+### Example 1: 创建矩阵与矩阵计算
+
+创建两个矩阵
+
+```{r}
+m1 <- matrix(1, nr = 2, nc = 2)
+m2 <- matrix(data = c(1, 2, 3, 4), nr = 2, nc = 2)
+```
+
+```{r}
+m1
+```
+
+```{r}
+m2
+```
+
+矩阵乘法计算
+
+```{r}
+m1 %*% m2
+```
+
+对应的数学公式为
+
+$$
+\left(
+\begin{array}{1}
+1 & 1 \\
+1 & 1
+\end{array}
+\right)
+\left(
+\begin{array}{1}
+1 & 3 \\
+2 & 4
+\end{array}
+\right)
+=
+\left(
+\begin{array}{1}
+3 & 7 \\
+3 & 7
+\end{array}
+\right)
+$$
+
+### Example 2: 表格与画图
+
+用 `knitr::kable` 展示 `iris` 数据集的前几行
+
+```{r}
+knitr::kable(head(iris))
+```
+
+画出 `Sepal.Length` 和 `Petal.Length` 的散点图并用颜色标注 `Species`
+
+```{r}
+plot(iris$Sepal.Length, iris$Petal.Length, col=iris$Species)
+```
+
+### Example 3: 简单做下相关性分析
+
+Pearson 相关系数：
+
+$$\rho _{X,Y}=\frac { {\rm cov} (X,Y)}{\sigma_{X}\sigma_{Y}}$$
+
+```{r}
+cor.test(iris$Sepal.Length, iris$Petal.Length, method="pearson")
+```
+
+Spearman 相关系数：
+
+$${\displaystyle r_{s}=\rho _{\operatorname {R} (X),\operatorname {R} (Y)}={\frac {\operatorname {cov} (\operatorname {R} (X),\operatorname {R} (Y))}{\sigma _{\operatorname {R} (X)}\sigma _{\operatorname {R} (Y)}}},}$$
+
+```{r}
+cor.test(iris$Sepal.Length, iris$Petal.Length, method="spearman")
+```
+
+Kendall 相关系数：
+
+$${\displaystyle \tau ={\frac {({\text{number of concordant pairs}})-({\text{number of discordant pairs}})}{({\text{number of pairs}})}}=1-{\frac {2({\text{number of discordant pairs}})}{n \choose 2}}.}$$
+
+```{r}
+cor.test(iris$Sepal.Length, iris$Petal.Length, method="kendall")
+```
+
+可以看到，几种相关系数都显示 `Sepal.Length` 和 `Petal.Length`强烈相关。
+
+
+# HW1
+
+
+### Question
+
+> 利用逆变换法复现函数 sample 的部分功能（`replace = TRUE`）
+
+### Answer
+
+```{r}
+my.sample <- function(x, size, prob = NULL) {
+    n <- length(x)
+
+    if (is.null(prob)) {
+        prob <- rep(1/n, n)
+    }
+
+    cp <- cumsum(prob)
+
+    u <- runif(size)
+
+    ret <- x[findInterval(u, cp) + 1]
+
+    return(ret)
+}
+```
+
+试一下
+
+```{r}
+my.sample(1:3, 20)
+```
+
+```{r}
+x <- my.sample(1:5, 1000, prob=c(1,2,3,4,5) / 15)
+hist(x, prob = TRUE, breaks = 0:5)
+```
+
+### Question
+
+3.2. The standard Laplace distribution has density $f(x)=\frac{1}{2}e^{-|x|}, x ∈ \mathbf{R}$. 
+Use the inverse transform method to generate a random sample of size 1000 from this
+distribution. Use one of the methods shown in this chapter to compare the
+generated sample to the target distribution.
+
+### Answer
+
+累积分布函数为 $F(x)=\int^x_{-\inf} f(x) \mathrm{d}x$，$x<0$ 时，$F(x)=e^x/2$，
+$x>0$ 时，$F(x)=1-e^{-x}/2$. 其反函数为，$u<1/2$ 时， $F^{-1}(u)=ln(2u)$，
+$u>1/2$ 时，$F^{-1}(u)=-ln[2(1-u)]$。即可利用 inverse transform method 生成随机数。
+
+```{r}
+n <- 1000
+u <- runif(n)
+x <- numeric(length(u))
+x[u < 0.5] <- log(2*u[u < 0.5])
+x[u > 0.5] <- -log(2*(1-u[u > 0.5]))
+
+hist(x, prob = TRUE, main = expression(f(x)==0.5*exp(-abs(y))))
+y <- seq(-5, 5, .1)
+lines(y, 0.5*exp(-abs(y)))
+```
+
+
+### Question
+
+3.7. Write a function to generate a random sample of size n from the Beta(a, b)
+distribution by the acceptance-rejection method. Generate a random sample
+of size 1000 from the Beta(3,2) distribution. Graph the histogram of the
+sample with the theoretical Beta(3,2) density superimposed.
+
+### Answer
+
+求导代入计算可得 Beta(a, b) 分布 pdf 的峰值，便可使用 acceptance-rejection algorithm 生成样本。
+
+```{r}
+my.beta <- function(a, b, x) {
+    return(gamma(a + b) / gamma(a) / gamma(b) * x^(a-1) * (1-x)^(b - 1))
+}
+
+my.genbeta <- function(a, b, n) {
+    k <- 0
+    y <- numeric(n)
+    max.beta <- ((a - 1) / (a + b - 2)) ^ (a - 1) * ((b - 1) / (a + b - 2)) ^ (b - 1) * gamma(a + b) / gamma(a) / gamma(b)
+
+
+    while (k < n) {
+        u <- runif(1)
+        x <- runif(1)
+        if (my.beta(a, b, x) / max.beta > u) {
+            k <- k + 1
+            y[k] <- x
+        }
+    }
+
+    return(y)
+}
+```
+
+```{r}
+x = my.genbeta(3, 2, 1000)
+hist(x, prob = TRUE, main = expression(f(x)==Beta(3,2)))
+y <- seq(0, 1, .01)
+lines(y, my.beta(3, 2, y))
+```
+
+### Question
+
+3.9. The rescaled Epanechnikov kernel [85] is a symmetric density function
+
+$$
+f_e(x)=\frac{3}{4}(1-x^2), |x| \le 1
+$$
+
+Devroye and Gy¨orfi [71, p. 236] give the following algorithm for simulation
+from this distribution. Generate iid U1, U2, U3 ∼ Uniform(−1, 1). If |U3| ≥
+|U2| and |U3|≥|U1|, deliver U2; otherwise deliver U3. Write a function
+to generate random variates from fe, and construct the histogram density
+estimate of a large simulated random sample.
+
+```{r}
+genfe <- function(n) {
+    u1 <- runif(n) * 2 - 1
+    u2 <- runif(n) * 2 - 1
+    u3 <- runif(n) * 2 - 1
+
+    y <- u3
+    cond <- (abs(u3) >= abs(u2)) & (abs(u3) >= abs(u1))
+    y[cond] <- u2[cond]
+
+    return(y) 
+}
+```
+
+```{r}
+x <- genfe(1000)
+hist(x, prob = TRUE, main = "f_e")
+y <- seq(-1, 1, .01)
+lines(y, 0.75*(1-y^2))
+```
+
+
+### Question
+
+3.10. Prove that the algorithm given in Exercise 3.9 generates variates from the
+density fe.
+
+### Answer
+
+这个算法实际上是，先生成了三个均匀分布 U(0,1) 的变量，然后取其中不是最大值的两个生成混合分布，
+最后以一半的概率将其变为负数。可以先计算第二步后的累积分布函数，要使 $X < t$，要么至少有两个变量小于 t，
+$p1=C^2_3 t^2(1-t) + C^3_3t^3=t^2(3-2t)$，要么只有一个变量小于 t 且正好取到了该变量，
+$p2=C_3^1 t(1-t)^2*1/2=3/2t(1-t)^2$。两者相加并求导可得 pdf $f(x)=3/2(1-t^2)$。最后
+一步则相当于把该 pdf 对 y 轴做了一个对称且重新归一化，最终 pdf 即为
+
+$$
+f_e(x)=\frac{3}{4}(1-x^2), |x| \le 1
+$$
+
+
+# HW2
+
+
+### Question
+
+- Proof that what value ρ = l/d should take to minimize the asymptotic 
+variance of $\hat{\pi}$? (m ∼ B(n,p), using δ method)
+- Take three different values of ρ (0 ≤ ρ ≤ 1, including ρmin) 
+and use Monte Carlo simulation to verify 
+your answer. (n = 1e6, Number of repeated simulations K = 100)
+
+### Answer
+
+$\hat{\pi}=\frac{2l}{d\hat{p}}$，其中 $\hat{p}=m/n$ 是 p 的估计值，
+其方差为 $Var(\hat{p})=p(1-p)/n$，而 $p=\frac{2l}{d\pi}$.
+所以 
+
+$$Var(\frac{1}{\hat{\pi}})=\frac{d}{2l} p(1-p)/n = \frac{1-p}{n\pi}$$
+
+要使 $\hat{\pi}$ 方差最小，应使 $1/\hat{\pi}$ 方差最小，p 应接近 1，
+$\rho=l/d$ 应接近 $\pi/2$。
+
+```{r}
+buffon <- function(rho) {
+    n <- 1e6
+    l <- 1
+    d <- l/rho
+
+    X <- runif(n,0,d/2)
+    Y <- runif(n,0,pi/2)
+    pihat <- 2*l/d/mean(l/2*sin(Y)>X)
+    return(pihat)
+}
+```
+
+```{r}
+pihat1 <- replicate(100, buffon(1/3))
+pihat2 <- replicate(100, buffon(2/3))
+pihat3 <- replicate(100, buffon(1))
+c(sd(pihat1), sd(pihat2), sd(pihat3))
+```
+
+确实是取值越接近 $\pi/2$ 方差越小。
+
+### Question
+
+5.6.  In Example 5.7 the control variate approach was illustrated for Monte Carlo
+integration of
+
+$$
+\theta = \int_0^1 e^x dx
+$$
+
+Now consider the antithetic variate approach. Compute $Cov(e^U , e^{1−U})$ and
+$Var(e^U + e^{1−U})$, where U ∼ Uniform(0,1). What is the percent reduction in
+variance of $\hat{\theta}$ that can be achieved using antithetic variates (compared with
+simple MC)?
+
+### Answer
+
+设 $e^U, e^{1-U}$ 分别为 $U_1, U_2$。
+$Cov(U_1, U_2)$ 和 $Var(U_1 + U_2)$ 分别为
+
+```{r}
+u <- runif(1000)
+u1 <- exp(u)
+u2 <- exp(1-u)
+
+cov.u1.u2 = cov(u1, u2)
+var.u1.add.u2 = var(u1 + u2)
+
+c(cov.u1.u2, var.u1.add.u2)
+```
+
+$$
+Var(U_1) = Var(U_2) = (Var(U_1 + U_2) - 2Cov(U_1, U_2)) / 2
+$$
+
+```{r}
+var.u1 = 0.5 * var.u1.add.u2 - cov.u1.u2
+```
+
+方差减少百分比为 
+
+$$
+1 - Var((U_1 + U_2) / 2) / Var(U_1) = 0.5 - 0.5 Cov(U_1, U_2) / Var(U_1)
+$$
+
+```{r}
+0.5 - 0.5 * cov.u1.u2 / var.u1
+```
+
+### Question
+
+5.7. Refer to Exercise 5.6. Use a Monte Carlo simulation to estimate θ by the
+antithetic variate approach and by the simple Monte Carlo method. Compute
+an empirical estimate of the percent reduction in variance using the antithetic
+variate. Compare the result with the theoretical value from Exercise 5.6.
+
+
+### Answer
+
+两种方法估计 $\theta$
+
+```{r}
+# antithetic variate approach
+u <- runif(1000)
+u1 <- exp(u)
+u2 <- exp(1-u)
+
+theta1 <- (u1 + u2) / 2
+
+# simple Monte Carlo method
+u <- runif(1000)
+theta2 <- exp(u)
+
+c(mean(theta1), mean(theta2))
+```
+
+比较方差
+
+```{r}
+c(var(theta1), var(theta2), 1 - var(theta1)/var(theta2))
+```
+
+和理论预言一致。
+
+
+# HW3
+
+### Question
+
+$Var(\hat{\theta}^M)= \frac{1}{Mk} \sum_{i=1}^k \sigma_i^2+Var(\theta_I)=Var(\hat{\theta}^S)+Var(θ_I)$
+, where $θ_i =E[g(U)|I =i],σ_i^2 =Var[g(U)|I =i]$
+and $I$ takes uniform distribution over $\{1, . . . , k\}$.
+Proof that if $g$ is a continuous function over $(a, b)$, then 
+$Var(\hat{\theta}^S )/Var(\hat{\theta}^M ) → 0$ as $b_i − a_i → 0$ for all
+$i = 1,...,k$.
+
+
+### Answer
+
+$b_i-a_i\rightarrow 0$ 时，
+
+$$
+Var(\hat{\theta}^S)=\frac{1}{Mk}\sum_{i=1}^k \sigma_i^2
+\rightarrow
+\frac{1}{Mk}\sum_{i=1}^k g'^2(a_i) \frac{(b_i-a_i)^2}{12}
+\rightarrow 0
+$$
+
+而 $a_i$ $b_i$ 的选取不影响 $Var(\hat{\theta}^M )$
+
+$$
+Var(\hat{\theta}^S )/Var(\hat{\theta}^M ) → 0
+$$
+
+### Question
+
+5.13. Find two importance functions $f_1$ and $f_2$ that are supported on $(1, ∞)$ and
+are ‘close’ to
+
+$$
+g(x)=\frac{x^2}{\sqrt{2\pi}} e^{-x^2/2}, x>1
+$$
+
+Which of your two importance functions should produce the smaller variance
+in estimating
+
+$$
+\int_1^\infty \frac{x^2}{\sqrt{2\pi}} e^{-x^2/2} \mathrm{d} x
+$$
+
+by importance sampling? Explain.
+
+### Answer
+
+两个重要性函数，$f_1(x)=\exp(-x^2/2)/\sqrt{2\pi}$，$f_2(x)=1/x^2$。
+
+理论方差分别为
+
+$$
+\int_{1}^{+\infty} \frac{g^2(x)}{f_1(x)} \mathrm{d}x - \theta^2
+\approx 1.44 - \theta^2
+$$
+
+$$
+\int_{1}^{+\infty} \frac{g^2(x)}{f_2(x)} \mathrm{d}x - \theta^2
+\approx 0.25 - \theta^2
+$$
+
+使用 $f_2$ 方差应该更小。
+
+### Question
+
+5.14.  Obtain a Monte Carlo estimate of
+
+$$
+\int_1^\infty \frac{x^2}{\sqrt{2\pi}} e^{-x^2/2} \mathrm{d} x
+$$
+
+by importance sampling.
+
+### Answer
+
+使用重要性函数 $f(x)=1/x^2$ 进行采样
+
+```{r}
+u <- runif(10000)
+x <- 1/(1-u)
+theta <- x^2 /sqrt(2*pi) * exp(-x^2/2) / (1/x^2)
+
+mean(theta)
+```
+
+### Question
+
+5.15. Obtain the stratified importance sampling estimate in Example 5.13 
+and compare it with the result of Example 5.10.
+
+### Answer
+
+```{r}
+M <- 10000; k <- 5
+r <- M/k
+theta <- numeric(M)
+g <- function(x) exp(-x - log(1+x^2)) * (x > 0) * (x < 1)
+f <- function(x) exp(-x) / (1 - exp(-1))
+
+for (j in 1:k) {
+    u <- runif(r, (j-1)/k, j/k)
+    x <- - log(1 - u * (1 - exp(-1)))
+    theta[(r*(j-1)+1):(r*j)] <- g(x)/f(x)
+}
+
+mean(theta)
+```
+
+与例 5.10 的结果接近。
+
+### Question
+
+6.5.  Suppose a $95\%$ symmetric $t$-interval is applied to estimate a mean, but the
+sample data are non-normal. Then the probability that the confidence interval
+covers the mean is not necessarily equal to $0.95$. Use a Monte Carlo experiment
+to estimate the coverage probability of the $t$-interval for random samples of
+$χ^2(2)$ data with sample size $n = 20$. Compare your $t$-interval results with the
+simulation results in Example 6.4. (The $t$-interval should be more robust to
+departures from normality than the interval for variance.)
+
+### Answer
+
+```{r}
+M <- 10000
+N <- 0
+
+n <- 20
+alpha <- 0.05
+
+for (i in 1:M) {
+    sample <- rchisq(n, df=2)
+    upper <- mean(sample) + sd(sample)/sqrt(n)*qt(1-alpha/2, df=n-1)
+    lower <- mean(sample) - sd(sample)/sqrt(n)*qt(1-alpha/2, df=n-1)
+
+    if (2 < upper && 2 > lower) N = N + 1
+}
+
+N/M
+```
+
+相比例 6.4，概率要小于 $95\%$。
+
+### Question
+
+6.A. Use Monte Carlo simulation to investigate whether the empirical Type I 
+error rate of the t-test is approximately equal to the nominal significance level
+α, when the sampled population is non-normal. The t-test is robust to mild
+departures from normality. Discuss the simulation results for the cases where
+the sampled population is (i) $χ^2(1)$, (ii) Uniform(0,2), and 
+(iii) Exponential(rate=1). In each case, test $H_0 : µ = µ_0$ vs $H_0 : µ \neq µ0$, 
+where µ0 is the
+mean of $χ_2(1)$, Uniform(0,2), and Exponential(1), respectively.
+
+### Answer
+
+(i) 卡方分布 $χ_2(1)$
+
+```{r}
+M <- 10000
+n <- 20
+
+p.val <- numeric(M)
+
+for (i in 1:M) {
+    sample <- rchisq(n, df=1)
+    mu <- 1
+    t <- (mean(sample) - mu) / (sd(sample) / sqrt(n))
+    p.val[i] <- 2*(1-pt(abs(t), n-1))
+}
+
+mean(p.val<=0.05)
+```
+
+(ii) 均匀分布 Uniform(0,2)
+
+```{r}
+M <- 10000
+n <- 20
+
+p.val <- numeric(M)
+
+for (i in 1:M) {
+    sample <- runif(n, 0, 2)
+    mu <- 1
+    t <- (mean(sample) - mu) / (sd(sample) / sqrt(n))
+    p.val[i] <- 2*(1-pt(abs(t), n-1))
+}
+
+mean(p.val<=0.05)
+```
+
+(iii) 指数分布 Exponential(1)
+
+```{r}
+M <- 10000
+n <- 20
+
+p.val <- numeric(M)
+
+for (i in 1:M) {
+    sample <- rexp(n, 1)
+    mu <- 1
+    t <- (mean(sample) - mu) / (sd(sample) / sqrt(n))
+    p.val[i] <- 2*(1-pt(abs(t), n-1))
+}
+
+mean(p.val<=0.05)
+```
+
+i 和 iii 情形第一类错误率稍微偏大，ii 情形第一类错误率和显著水平 $\alpha$ 很接近。
+
+# HW4
+
+### Question
+
+考虑 $m=1000$ 个假设，其中前 $95%$ 个原假设成立，后 $5%$ 个对立假设成立。
+在原假设下 p 值服从 $U(0,1)$ 分布，在对立假设下 p 值服从 $Beta(0.1, 1)$ 分布。
+将 Bonferroni 校正与 B-H 校正应用于生成的 $m$ 个 p 值，得到校正后的 p 值，
+与 $\alpha=0.1$ 比较确定是否拒绝原假设。基于 $M=1000$ 次模拟，
+估计 FWER, FDR, TPR, 输出到表格中。
+
+### Answer
+
+```{r}
+M <- 1000
+m <- 1000
+
+alpha <- 0.1
+
+FWER.bonferroni <- numeric(M)
+FDR.bonferroni <- numeric(M)
+TPR.bonferroni <- numeric(M)
+
+FWER.BH <- numeric(M)
+FDR.BH <- numeric(M)
+TPR.BH <- numeric(M)
+
+
+for (i in 1:M) {
+    p <- numeric(m)
+    null.is.true <- logical(m)
+    p[1:(0.95*m)] <- runif(0.95*m)
+    null.is.true[1:(0.95*m)] <- TRUE
+    p[(0.95*m+1):m] <- rbeta(0.05*m, 0.1, 1)
+
+    p.bonferroni <- p.adjust(p, method = "bonferroni")
+    p.BH <- p.adjust(p, method = "BH")
+
+    FWER.bonferroni[i] <- any(p.bonferroni < alpha & null.is.true)
+    FDR.bonferroni[i] <- sum(p.bonferroni < alpha & null.is.true) / sum(p.bonferroni < alpha)
+    TPR.bonferroni[i] <- sum(p.bonferroni < alpha & !null.is.true) / sum(!null.is.true)
+
+    FWER.BH[i] <- any(p.BH < alpha & null.is.true)
+    FDR.BH[i] <- sum(p.BH < alpha & null.is.true) / sum(p.BH < alpha)
+    TPR.BH[i] <- sum(p.BH < alpha & !null.is.true) / sum(!null.is.true)
+}
+
+tb <- matrix(c(mean(FWER.bonferroni),mean(FDR.bonferroni),mean(TPR.bonferroni), 
+               mean(FWER.BH),mean(FDR.BH),mean(TPR.BH)), 
+             nrow = 2, ncol = 3, byrow = TRUE,
+             dimnames = list(c("bonferroni", "BH"),
+                             c("FWER", "FDR", "TPR")))
+
+knitr::kable(tb)
+```
+
+### Question
+
+Suppose the population has the exponential distribution with rate $\lambda$, then the MLE of $\lambda$ is $\hat\lambda=1/\bar X$, where $\bar X$ is the sample mean. It can be derived that the expectation of $\hat\lambda$ is $\lambda n/(n-1)$, so that the estimation bias is $\lambda/(n-1)$. The standard error $\hat\lambda$ is $\lambda n/[(n-1)\sqrt{n-2}]$. Conduct a simulation study to verify the performance of the bootstrap method. 
++ The true value of $\lambda=2$.
++ The sample size $n=5,10,20$.
++ The number of bootstrap replicates $B = 1000$.
++ The simulations are repeated for $m=1000$ times.
++ Compare the mean bootstrap bias and bootstrap standard error with the theoretical ones. Comment on the results.
+
+### Answer
+
+```{r}
+library(boot)
+B <- 1000
+m <- 1000
+
+b.lambda <- function (x, i) 1 / mean(x[i])
+
+tb <- matrix(numeric(12), 
+             nrow = 3, ncol = 4, byrow = TRUE,
+             dimnames = list(c("n=5", "n=10", "n=20"),
+                             c("bias", "se", "theoretical bias", "theoretical se")))
+
+for (n in c(5, 10, 20)) {
+    row <- stringr::str_c("n=", n)
+    tb[row, "theoretical bias"] <- 2 / (n-1)
+    tb[row, "theoretical se"] <- 2*n / (n-1) / sqrt(n-2)
+
+    for (i in 1:m) {
+        s <- rexp(n, 2)
+        result <- boot(s, b.lambda, B)
+        tb[row, "bias"] = tb[row, "bias"] + mean(result$t) - result$t0
+        tb[row, "se"] = tb[row, "se"] + sd(result$t)
+    }
+
+    tb[row, "bias"] = tb[row, "bias"] / m
+    tb[row, "se"] = tb[row, "se"] / m
+}
+
+
+knitr::kable(tb)
+```
+
+bootstrap 的 bias 和 se 和理论值吻合较好，特别是 n 较大时。
+
+### Question
+
+Obtain a bootstrap t confidence interval estimate for the correlation statistic
+in Example 7.2 (law data in bootstrap).
+
+### Answer
+
+```{r}
+law <- cbind(
+    LSAT = c(576, 635, 558, 578, 666, 580, 555, 661, 651, 605, 653, 575, 545, 572, 594),
+    GPA = c(339, 330, 281, 303, 344, 307, 300, 343, 336, 313, 312, 274, 276, 288, 296)
+)
+
+r_ <- function(x, i) cor(x[i,1], x[i,2])
+r <- function(x, i) {
+    b <- boot(x[i,], r_, 100)
+    return(c(cor(x[i,1], x[i,2]), var(b$t)))
+}
+
+obj <- boot(law, r, 2000)
+
+boot.ci(obj, type="stud")
+```
+
+# HW5
+
+
+### Question
+
+7.5. Refer to Exercise 7.4. Compute 95% bootstrap confidence intervals for the
+mean time between failures 1/λ by the standard normal, basic, percentile,
+and BCa methods. Compare the intervals and explain why they may differ.
+
+### Answer
+
+`boot.ci` 默认会计算全部四种算法的 $95\%$ 置信区间，直接调用即可：
+
+```{r}
+library(boot)
+
+b.mean <- function (x, i) return(mean(x[i]))
+obj <- boot(aircondit$hours, b.mean, 2000)
+boot.ci(obj)
+```
+
+几种算法结果不同，因为他们各自基于不同的假设。
+
+### Question
+
+7.8 Refer to Exercise 7.7. Obtain the jackknife estimates of bias and standard
+error of $\hat{\theta}$
+
+### Answer
+
+```{r}
+library(bootstrap)
+
+b.theta <- function(x, i) {
+    lambdas <- eigen(cor(x[i,]))$values
+    return(lambdas[1] / sum(lambdas))
+}
+
+n <- 88
+
+theta.hat <- b.theta(scor, 1:n)
+theta.jack <- numeric(n)
+
+for(i in 1:n){
+    theta.jack[i] <- b.theta(scor, (1:n)[-i])
+}
+
+bias.jack <- (n-1)*(mean(theta.jack)-theta.hat)
+se.jack <- sqrt((n-1)*mean((theta.jack-theta.hat)^2))
+
+c(bias.jack=bias.jack, se.jack=se.jack)
+```
+
+
+### Question
+
+7.11. In Example 7.18, leave-one-out (n-fold) cross validation was used to select the
+best fitting model. Use leave-two-out cross validation to compare the models.
+
+### Answer
+
+```{r}
+library(DAAG)
+attach(ironslag)
+
+n <- length(magnetic) # in DAAG ironslag
+e1 <- e2 <- e3 <- e4 <- numeric(n*(n-1)) # n choose 2 error pair, 2*C_n^2
+
+
+# fit models on leave-two-out samples
+i <- 1 # indice of e_i
+for (k in 2:n) {
+    for (l in 1:(k-1)) {
+        y <- magnetic[-k][-l]
+        x <- chemical[-k][-l]
+
+        J1 <- lm(y ~ x)
+        yhat1 <- J1$coef[1] + J1$coef[2] * chemical[k]
+        e1[i] <- magnetic[k] - yhat1
+        yhat1 <- J1$coef[1] + J1$coef[2] * chemical[l]
+        e1[i+1] <- magnetic[l] - yhat1
+
+        J2 <- lm(y ~ x + I(x^2))
+        yhat2 <- J2$coef[1] + J2$coef[2] * chemical[k] + J2$coef[3] * chemical[k]^2
+        e2[i] <- magnetic[k] - yhat2
+        yhat2 <- J2$coef[1] + J2$coef[2] * chemical[l] + J2$coef[3] * chemical[l]^2
+        e2[i+1] <- magnetic[l] - yhat2
+
+        J3 <- lm(log(y) ~ x)
+        logyhat3 <- J3$coef[1] + J3$coef[2] * chemical[k]
+        yhat3 <- exp(logyhat3)
+        e3[i] <- magnetic[k] - yhat3
+        logyhat3 <- J3$coef[1] + J3$coef[2] * chemical[l]
+        yhat3 <- exp(logyhat3)
+        e3[i+1] <- magnetic[l] - yhat3
+
+        J4 <- lm(log(y) ~ log(x))
+        logyhat4 <- J4$coef[1] + J4$coef[2] * log(chemical[k])
+        yhat4 <- exp(logyhat4)
+        e4[i] <- magnetic[k] - yhat4
+        logyhat4 <- J4$coef[1] + J4$coef[2] * log(chemical[l])
+        yhat4 <- exp(logyhat4)
+        e4[i+1] <- magnetic[l] - yhat4
+
+        i = i + 2
+    }
+}
+
+c(mean(e1^2), mean(e2^2), mean(e3^2), mean(e4^2))
+```
+
+结果和 leave-one-out 差不多，也是 Model 2 最好。
+
+# HW6
+
+
+### Question
+
+Proof the Stationarity of Metropolis-Hastings sampler Algorithm in continuous situation.
+
+### Answer
+
+Stationarity: $K(s, r) f(s) = K(r, s) f(r)$
+
+等式左边等于：
+
+$$
+\left\{\alpha(s, r) g(r|s) + I(s=r) \left[1 - \int \alpha(s, r) g(r|s)\right]\right\} f(s) \\
+= \alpha(s, r) g(r|s) f(s) + I(s=r) \left[1 - \int \alpha(s, r) g(r|s)\right] f(s)
+$$
+
+$f(r)g(s|r) > f(s)g(r|s)$ 时，$\alpha(s, r) = 1$。
+左边等于：
+
+$$
+g(r|s) f(s) + I(s=r) \left[1 - \int \alpha(s, r) g(r|s)\right] f(s)
+$$
+
+$f(r)g(s|r) \leq f(s)g(r|s)$ 时，$\alpha(s, r) = \frac{f(r)g(s|r)} {f(s)g(r|s)}$。左边等于：
+
+$$
+g(s|r) f(r) + I(s=r) \left[1 - \int \alpha(s, r) g(r|s)\right] f(s)
+$$
+
+等式右边同理有以上结果，式子第一项相等，而式子第二项注意到乘了 $I(s=r)$，
+所以第二项中 $s$ 和 $r$ 可以任意代换所以也相等。
+
+所以 Stationarity 成立。
+
+### Question
+
+8.1. Implement the two-sample Cramer-von Mises test for equal distributions as a
+permutation test. Apply the test to the data in Examples 8.1 and 8.2.
+
+### Answer
+
+实现两样本 Cramer-von Mises 检验的函数：
+
+```{r}
+library(boot)
+
+boot.cvm <- function(z, ix, sizes) {
+    n <- sizes[1]; m <- sizes[2]; nm <- n + m
+    z <- z[ix]
+
+    xs <- z[1:n]; ys <- z[(n+1):nm]
+    F <- ecdf(xs)
+    G <- ecdf(ys)
+
+    m*n/(m+n)^2 * ( sum((F(xs) - G(xs))^2) + sum((F(ys) - G(ys))^2) )
+}
+
+perm.cvm <- function(xs, ys) {
+    boot.obj <- boot(data = c(xs, ys), statistic = boot.cvm, R = 999,
+                     sim = "permutation", sizes = c(length(xs), length(ys)))
+
+    ts <- c(boot.obj$t0,boot.obj$t)
+    mean(ts>=ts[1])
+}
+```
+
+对例 8.1 和 8.2 的数据应用：
+
+```{r}
+attach(chickwts)
+x <- sort(as.vector(weight[feed == "soybean"]))
+y <- sort(as.vector(weight[feed == "linseed"]))
+detach(chickwts)
+
+perm.cvm(x, y)
+```
+
+p 值较大，不能拒绝两样本无显著差别的原假设。
+
+
+### Question
+
+8.3. The Count 5 test for equal variances in Section 6.4 is based on the maximum
+number of extreme points. Example 6.15 shows that the Count 5 criterion
+is not applicable for unequal sample sizes. Implement a permutation test for
+equal variance based on the maximum number of extreme points that applies
+when sample sizes are not necessarily equal.
+
+### Answer
+
+```{r}
+count5test <- function(x, y) {
+    X <- x - mean(x)
+    Y <- y - mean(y)
+    outx <- sum(X > max(Y)) + sum(X < min(Y))
+    outy <- sum(Y > max(X)) + sum(Y < min(X))
+
+    return(max(c(outx, outy)))
+}
+
+boot.c5 <- function(z, ix, sizes) {
+    n <- sizes[1]; m <- sizes[2]; nm <- n + m
+    z = z[ix]
+
+    count5test(z[1:n], z[(n+1):nm])
+}
+
+perm.c5 <- function(xs, ys) {
+    
+
+    boot.obj <- boot(data = c(xs, ys), statistic = boot.c5, R = 999,
+                     sim = "permutation", sizes = c(length(xs), length(ys)))
+
+    ts <- c(boot.obj$t0,boot.obj$t)
+    mean(ts>=ts[1])
+}
+```
+
+试一下：
+
+```{r}
+x <- rnorm(100, 0, 1)
+y <- rnorm(20, 0, 1)
+perm.c5(x, y)
+```
+
+p 较大，不能拒绝原假设，符合预期。
+
+```{r}
+x <- rnorm(30, 0, 1)
+y <- rnorm(70, 0, 2)
+perm.c5(x, y)
+```
+
+p 很小，拒绝原假设，符合预期。
+
+
+# HW7
+
+
+### Question
+
+Consider a model 
+$P(Y = 1 | X_1,X_2,X_3) = \frac{\mathrm{exp}(a+b_1X_1+b_2X_2+b_3X_3)}
+{1+\mathrm{exp}(a+b_1 X_1 +b_2 X_2 +b_3 X_3 )}$, 
+where $X_1 ∼ P(1)$, $X_2 ∼ Exp(1)$ and $X_3 ∼ B(1, 0.5)$.
+
+- Design a function that takes as input values $N$, $b_1$, $b_2$, $b_3$ and $f_0$, 
+and produces the output $a$.
+
+- Call this function, input values are $N = 10^6$ , $b_1 = 0$, $b_2 = 1$, $b_3 = −1$, 
+$f_0 = 0.1, 0.01, 0.001, 0.0001$.
+
+- Plot $−\mathrm{log}f_0$ vs $a$.
+
+### Answer
+
+求 a 的函数为：
+
+```{r}
+produce.a <- function(N, b1, b2, b3, f0) {
+    X1 <- rpois(N, 1)
+    X2 <- rexp(N, 1)
+    X3 <- rbinom(N, 1, 0.5)
+
+    g <- function(a) {
+        tmp <- exp(-a - b1*X1 - b2*X2 - b3*X3)
+
+        mean(1/(1+tmp)) - f0
+    }
+
+    res <- uniroot(g, c(-100, 0))
+    res$root
+}
+```
+
+调用函数：
+
+```{r}
+f0s = c(1e-1, 1e-2, 1e-3, 1e-4)
+as = sapply(f0s, function (f0) produce.a(1e6, 0, 1, -1, f0))
+as
+```
+
+画图：
+
+```{r}
+plot(-log10(f0s), as)
+lines(-log10(f0s), as)
+```
+
+### Question
+
+9.4. Implement a random walk Metropolis sampler for generating the standard
+Laplace distribution (see Exercise 3.2). For the increment, simulate from a
+normal distribution. Compare the chains generated when different variances
+are used for the proposal distribution. Also, compute the acceptance rates of
+each chain.
+
+### Answer
+
+```{r}
+rwMC <- function (N, f, rwsd, x0) {
+    # proposal distribution for random walk
+    rg <- function(xt) rnorm(1, xt, rwsd)
+    dg <- function(xt, x) dnorm(x, xt, rwsd)
+
+    # chain
+    xs <- numeric(N)
+    xs[1] <- x0
+
+    # acceptance rate
+    ac <- numeric(N)
+    ac[1] <- 1
+
+    for (i in 1:(N-1)) {
+        Y <- rg(xs[i])
+        U <- runif(1)
+
+        if (U <= f(Y)*dg(Y, xs[i])/f(xs[i])/dg(xs[i], Y)) {
+            xs[i+1] = Y
+            ac[i+1] = 1
+        } else {
+            xs[i+1] = xs[i]
+        }
+    }
+
+    list(chain=xs, ac=mean(ac))
+}
+```
+
+Laplace 分布 pdf 为 $f(x)=\frac{1}{2}e^{- |x|}$。
+
+初始值设为 5，分别使用标准差 1, 0.5, 0.1 的结果：
+
+```{r}
+f <- function (x) 1/2*exp(-abs(x))
+N <- 1e3
+
+res <- rwMC(N, f, 1, 5)
+plot(res$chain, type="l", main=paste("sd = 1\nacceptance rate = ", res$ac))
+```
+
+```{r}
+res <- rwMC(N, f, 0.5, 5)
+plot(res$chain, type="l", main=paste("sd = 0.5\nacceptance rate = ", res$ac))
+```
+
+```{r}
+res <- rwMC(N, f, 0.1, 5)
+plot(res$chain, type="l", main=paste("sd = 0.1\nacceptance rate = ", res$ac))
+```
+
+标准差越小，接受率越大，但到达稳态时间也更长。
+
+### Question
+
+9.7. Implement a Gibbs sampler to generate a bivariate normal chain (Xt, Yt)
+with zero means, unit standard deviations, and correlation 0.9. Plot the
+generated sample after discarding a suitable burn-in sample. Fit a simple
+linear regression model Y = β0 + β1X to the sample and check the residuals
+of the model for normality and constant variance.
+
+### Answer
+
+```{r}
+mc.binorm <- function(N) {
+    xs <- numeric(N)
+    ys <- numeric(N)
+
+    for (i in 1:(N-1)) {
+        xs[i+1] <- rnorm(1, 0.9*ys[i], 1-0.9^2)
+        ys[i+1] <- rnorm(1, 0.9*xs[i+1], 1-0.9^2)
+    }
+
+    list(x = xs, y = ys)
+}
+
+res <- mc.binorm(1e4)
+# discard burn-in
+res$x <- res$x[1e3:1e4]
+res$y <- res$y[1e3:1e4]
+```
+
+绘制散点图：
+
+```{r}
+plot(res$x, res$y)
+```
+
+线性回归:
+
+```{r}
+fit <- lm(y ~ x, res)
+summary(fit)
+```
+
+检验残差的正态性：
+
+```{r}
+qqnorm(fit$residuals)
+qqline(fit$residuals)
+```
+
+QQ 图显示与正态非常接近。
+
+检验方差是否恒定：
+
+```{r}
+plot(fitted(fit), fit$residuals)
+```
+
+方差恒定。
+
+
+### Question
+
+9.10.  Refer to Example 9.1. Use the Gelman-Rubin method to monitor convergence
+of the chain, and run the chain until the chain has converged approximately to
+the target distribution according to $\hat{R} < 1.2$. (See Exercise 9.9.) Also use the
+coda package to check for convergence of the chain by the Gelman-Rubin
+method. Hints: See the help topics for the coda functions gelman.diag,
+gelman.plot, as.mcmc, and mcmc.list
+
+### Answer
+
+计算 $\hat{R}$:
+
+```{R}
+R.hat <- function (chains) {
+    Wn <- mean(apply(chains, 2, var))
+    var.hat <- var(c(chains))
+
+    var.hat / Wn
+}
+```
+
+同时生成 10 条马尔可夫链，直到 $\hat{R} < 1.2$：
+
+```{r}
+f <- function(x, sigma) {
+    if (any(x < 0)) return (0)
+    stopifnot(sigma > 0)
+    return((x / sigma^2) * exp(-x^2 / (2*sigma^2)))
+}
+
+
+m <- 1e4
+sigma <- 4
+chains <- matrix(0, ncol=10, nrow=m)
+chains[1,] <- rchisq(10, df=1)
+k <- 0
+u <- matrix(runif(m*10), ncol=10, nrow=m)
+
+for (i in 2:m) {
+    for (j in 1:10) {
+        xt <- chains[i-1, j]
+        y <- rchisq(1, df = xt)
+        num <- f(y, sigma) * dchisq(xt, df = y)
+        den <- f(xt, sigma) * dchisq(y, df = xt)
+        if (u[i, j] <= num/den) chains[i, j] <- y else {
+            chains[i, j] <- xt
+            k <- k+1 #y is rejected
+        }
+    }
+
+    if (R.hat(chains[1:i,]) < 1.2) {
+        chains = chains[1:i,]
+        break
+    }
+}
+```
+
+
+计算 $\hat{R}$:
+
+```{R}
+n <- 2:nrow(chains)
+R.hats <- lapply(n, function (n) R.hat(chains[1:n,]))
+
+plot(n, R.hats, type="l", ylim=c(1,2))
+```
+
+使用 coda 分析：
+
+```{r}
+library(coda)
+
+chains.coda <- do.call(mcmc.list, lapply(1:10, function (i) as.mcmc(chains[,i])))
+
+gelman.diag(chains.coda)
+gelman.plot(chains.coda)
+```
+
+# HW8
+
+
+### Question
+
+设 $X_1,...,X_n \sim Exp(\lambda)$，因为某种原因只知道 $X_i$ 在区间 $(u_i, v_i)$，其中 $u_i < v_i$
+是两个非随机的已知常数。这种数据称为区间删失数据。
+
+(1) 试分别极大化观测数据的似然函数与采用 EM 算法求解 $\lambda$ 的 MLE，证明 EM 算法收敛于观测数据，
+且收敛有线性速度。
+
+(2) 设 $u_i, v_i$ 的观测值为 (11,12), (8,9), (27,28), (13,14), (16,17), (0,1), (23,24),
+(10,11), (24,25), (2,3)。试分别编程实现上述两种算法以得到 $\lambda$ 的 MLE 的数值解。
+
+### Answer
+
+(1)
+
+观测数据的似然函数：
+
+$$
+L(\lambda)=\prod_{i=1}^n P_\lambda (u_i < X_i < v_i)
+$$
+
+$$
+I(\lambda) = \sum_{i=1}^n log \int_{u_i}^{v_i} \lambda e^{-\lambda x} dx
+$$
+
+对 $\lambda$ 求导，令其为 0：
+
+$$
+I'(\lambda) = \sum_{i=1}^n \frac{ \int_{u_i}^{v_i} (1 - \lambda x) e^{-\lambda x} dx}
+{\int_{u_i}^{v_i} \lambda e^{-\lambda x} dx} = 
+\sum_{i=1}^n \left( \frac{1}{\lambda} -  E(X_i | u_i, v_i, \lambda_t)\right) = 0
+$$
+
+即
+
+$$
+\lambda = \frac{n}{\sum_{i=1}^n E(X_i | u_i, v_i, \lambda)}
+$$
+
+总体似然函数 
+
+$$
+L(\lambda | X_i) = \prod_{i=1}^n \lambda e^{-\lambda X_i}
+$$
+
+$$
+I(\lambda | X_i) = n log(\lambda) - \lambda\sum_{i=1}^n X_i
+$$
+
+E-step:
+
+$$
+E[I(\lambda | X_i) | u_i, v_i] = 
+n log(\lambda) - \lambda\sum_{i=1}^n E(X_i | u_i, v_i)
+$$
+
+M-step:
+
+$$
+\lambda_{t+1} = \frac{n}{\sum_{i=1}^n E(X_i | u_i, v_i, \lambda_t)}
+$$
+
+可以看到，其不动点就是极大化观测数据的似然函数的结果。
+
+
+设迭代函数为 
+
+$$
+f(\lambda) = \frac{n}{\sum_{i=1}^n E(X_i | u_i, v_i, \lambda_t)}
+$$
+
+
+$$
+\lim_{t\rightarrow \infty} \frac{\lambda_{t+1} - \lambda_*}{\lambda_t-\lambda_*} =
+f'(\lambda) = 常数
+$$
+
+所以线性收敛。
+
+(2)
+
+```{r}
+us <- c(11, 8, 27, 13, 16, 0, 23, 10, 24, 2)
+vs <- c(12, 9, 28, 14, 17, 1, 24, 11, 25, 3)
+
+estimate.em <- function (us, vs, max_iter) {
+    l <- 1
+    n <- length(us)
+    
+    for (i in 1:max_iter) {
+        ex <- numeric(n)
+        for (j in 1:n) {
+            ex[j] <- integrate(function(x) x*dexp(x, l), us[j], vs[j])$value / 
+                    (pexp(vs[j], l) - pexp(us[j], l))
+        }
+        tmp <- n / sum(ex)
+
+        if (abs(tmp - l) < 1e-6) {
+            return(tmp)
+        }
+
+        l <- tmp
+    }
+
+    l
+}
+
+estimate.obs <- function (us, vs) {
+    n <- length(us)
+
+    logl <- function(l) {
+        ret <- 0
+        for (i in 1:n) {
+            ret = ret + log(pexp(vs[i], l) - pexp(us[i], l))
+        }
+        ret
+    }
+
+    optimise(logl, c(1e-6, 1), maximum=TRUE)$maximum
+}
+```
+
+```{r}
+estimate.em(us, vs, 1e6)
+estimate.obs(us, vs)
+```
+
+### Question
+
+
+```{r}
+solve.game <- function(A) {
+    #solve the two player zero-sum game by simplex method
+    #optimize for player 1, then player 2
+    #maximize v subject to ...
+    #let x strategies 1:m, and put v as extra variable
+    #A1, the <= constraints
+    #
+    min.A <- min(A)
+    A <- A - min.A #so that v >= 0
+    max.A <- max(A)
+    A <- A / max(A)
+    m <- nrow(A)
+    n <- ncol(A)
+    it <- n^3
+    a <- c(rep(0, m), 1) #objective function
+    A1 <- -cbind(t(A), rep(-1, n)) #constraints <=
+    b1 <- rep(0, n)
+    A3 <- t(as.matrix(c(rep(1, m), 0))) #constraints sum(x)=1
+    b3 <- 1
+    sx <- simplex(a=a, A1=A1, b1=b1, A3=A3, b3=b3,
+    maxi=TRUE, n.iter=it)
+    #the ’solution’ is [x1,x2,...,xm | value of game]
+    #
+    #minimize v subject to ...
+    #let y strategies 1:n, with v as extra variable
+    a <- c(rep(0, n), 1) #objective function
+    A1 <- cbind(A, rep(-1, m)) #constraints <=
+    b1 <- rep(0, m)
+    A3 <- t(as.matrix(c(rep(1, n), 0))) #constraints sum(y)=1
+    b3 <- 1
+    sy <- simplex(a=a, A1=A1, b1=b1, A3=A3, b3=b3,
+                  maxi=FALSE, n.iter=it)
+    soln <- list("A" = A * max.A + min.A,
+        "x" = sx$soln[1:m],
+        "y" = sy$soln[1:n],
+        "v" = sx$soln[m+1] * max.A + min.A)
+    soln
+}
+```
+
+
+```{r}
+A <- matrix(c(  0,-2,-2,3,0,0,4,0,0,
+                2,0,0,0,-3,-3,4,0,0,
+                2,0,0,3,0,0,0,-4,-4,
+                -3,0,-3,0,4,0,0,5,0,
+                0,3,0,-4,0,-4,0,5,0,
+                0,3,0,0,4,0,-5,0,-5,
+                -4,-4,0,0,0,5,0,0,6,
+                0,0,4,-5,-5,0,0,0,6,
+                0,0,4,0,0,5,-6,-6,0), 9, 9)
+
+library(boot) #needed for simplex function
+
+solve.game(A)
+```
+
+```{r}
+B <- A + 2
+
+solve.game(B)
+```
+
+B 的解是 (11.15)。A 和 B 的 value 分别是 0 和 2。
+
+# HW9
+
+
+### Question
+
+2.1.3 Exercise 4. Why do you need to use `unlist()` to convert a list to an atomic
+vector? Why doesn’t `as.vector()` work?
+
+### Answer
+
+因为 `list` 的每个元素可能是不同类型的。
+
+
+### Question
+
+2.3.1 Exercise 1. What does `dim()` return when applied to a vector?
+
+### Answer
+
+```{r}
+dim(c(1,2,3))
+```
+
+会返回 `NULL`。
+
+### Question
+
+2.3.1 Exercise 2. If `is.matrix(x)` is TRUE, what will `is.array(x)` return?
+
+### Answer
+
+
+```{r}
+m <- matrix(1:9, ncol=3, nrow=3)
+is.matrix(m)
+is.array(m)
+```
+
+也会返回 `TRUE`。
+
+
+### Question
+
+2.4.5 Exercise 2. What does `as.matrix()` do when applied to a data frame with
+columns of different types?
+
+### Answer
+
+```{r}
+dfm <- data.frame(x = 1:3, y = c("1", "2", "3"))
+
+as.matrix(dfm)
+```
+
+会试图把每一列变成同一个类型并合在一起成一个 `matrix`。
+
+### Question
+
+2.4.5 Exercise 3. Can you have a data frame with 0 rows? What about 0
+columns?
+
+### Answer
+
+```{r}
+dfm <- data.frame()
+ncol(dfm)
+nrow(dfm)
+```
+
+
+### Question
+
+p204 Exercise 2. The function below scales a vector so it falls in the range [0, 1]. 
+How would you apply it to every column of a data frame?
+How would you apply it to every numeric column in a data frame?
+
+```{r}
+scale01 <- function(x) {
+    rng <- range(x, na.rm = TRUE)
+    (x - rng[1]) / (rng[2] - rng[1])
+}
+```
+
+### Answer
+
+应用到所有列：
+
+```{r}
+dfm <- data.frame(x = c(1, 2, 3), y = c(0, 2, 8))
+lapply(dfm, scale01)
+```
+应用到数值列：
+
+```{r}
+dfm <- data.frame(x = c(1, 2, 3), y = c("0", "2", "8"))
+
+idx <- sapply(dfm, class) == "numeric"
+lapply(dfm[idx], scale01)
+```
+
+### Question
+
+p213 Exercise 1. Use `vapply()` to:
+a) Compute the standard deviation of every column in a numeric data frame.
+b) Compute the standard deviation of every numeric column
+in a mixed data frame. (Hint: you’ll need to use `vapply()` twice.)
+
+### Answer
+
+
+```{r}
+dfm <- data.frame(x = c(1, 2, 3), y = c(0, 2, 8))
+
+vapply(dfm, sd, numeric(1))
+```
+
+
+```{r}
+dfm <- data.frame(x = c(1, 2, 3), y = c("0", "2", "8"))
+
+idx <- sapply(dfm, class) == "numeric"
+vapply(dfm[idx], sd, numeric(1))
+```
+
+
+
+### Question
+
+9.8. This example appears in [40]. Consider the bivariate density
+
+$$
+f(x, y) \propto {n \choose x} y^{x+a-1} (1-y)^{n-x+b-1}, x = 0, 1, ... , n, 0 \leq y \leq 1.
+$$
+
+It can be shown (see e.g. [23]) that for fixed a, b, n, the conditional distributions are Binomial(n, y) 
+and Beta(x + a, n − x + b). Use the Gibbs sampler to generate a chain with target joint density f(x, y).
+
+
+写一个 R 函数和一个 Rcpp 函数并比较速度
+
+### Answer
+
+
+R 函数：
+
+```{r}
+mc.r <- function(N, a, b, n) {
+    xs <- numeric(N)
+    ys <- numeric(N)
+
+    for (i in 1:(N-1)) {
+        xs[i+1] <- rbinom(1, n, ys[i])
+        ys[i+1] <- rbeta(1, xs[i+1] + a, n - xs[i+1] + b)
+    }
+
+    list(x = xs, y = ys)
+}
+```
+
+
+Rcpp 函数：
+
+```{r}
+library(Rcpp)
+
+mc.rcpp <- cppFunction("
+List mc(int N, double a, double b, int n) {
+    NumericVector xs(N);
+    NumericVector ys(N);
+    
+    xs[0] = 0;
+    ys[0] = 0;
+    
+    
+    for (int i = 0; i < N-1; i++) {
+        xs[i+1] = R::rbinom(n, ys[i]);
+        ys[i+1] = R::rbeta(xs[i+1] + a, n - xs[i+1] + b);
+    }
+    
+    return List::create(Named(\"x\") = xs, Named(\"y\") = ys);
+}
+")
+```
+
+
+
+benchmark:
+
+```{r}
+library(microbenchmark)
+microbenchmark(mc.r(1e4, 3, 3, 4), mc.rcpp(1e4, 3, 3, 4))
+```
+
+
+用 Rcpp 明显快得多。

@@ -1,0 +1,53 @@
+---
+title: "Example Usage of This Package"
+author: "Liang Wu"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Example Usage of This Package}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## Overview
+
+This package implement functions `pearson.r`, `rankdata` and `spearman.r` to calculate
+correlation coefficient in defferent methods. Here are usage of these functions:
+
+### `pearson.r`
+
+```{r}
+library(BA22022002)
+
+xs <- runif(1000)
+ys <- 0.2*xs + runif(1000)
+pearson.r(xs, ys)
+```
+
+Pearson correlation can show the positive correlation between `xs` and `ys`.
+
+### `rankdata`
+
+Spearman correlation is just the same as pearson correlation but calculated 
+with rank of original data. So I implement `rankdata` function first, with
+`Rcpp`. And here is usage.
+
+
+```{r}
+rankdata(c(1, 5, 2))
+```
+
+`rankdata` return rank of input data.
+
+
+### `spearman.r`
+
+Spearman correlation can be calculated using `pearson.r` and `rankdata`. And here is an example:
+
+```{r}
+xs[1] <- -100
+ys[1] <- 100
+c(pearson.r(xs, ys), spearman.r(xs, ys))
+```
+
+Pearson correlation can be strongly affect by outliers, while spearman correlation is more stable.
