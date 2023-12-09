@@ -1,0 +1,16 @@
+Package: BA22022002
+Type: Package
+Title: Student BA22022002's R package for StatComp
+Version: 1.0
+Date: 2023-11-27
+Author: Wu Liang
+Maintainer: Wu Liang <wul@mail.ustc.edu.cn>
+Description: Functions & examples of R & Rcpp for illustration. 
+License: GPL (>= 2)
+Suggests: knitr, rmarkdown
+VignetteBuilder: knitr
+LinkingTo: Rcpp
+RoxygenNote: 7.2.3
+Encoding: UTF-8
+URL: http://github.com/lwoo1999/BA22022002
+BugReports: http://github.com/lwoo1999/BA22022002/issues
